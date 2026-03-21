@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ローマ字マスター</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #f5f5f5 0%, #ffffff 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .screen {
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+      padding: 40px;
+      max-width: 600px;
+      width: 90%;
+      text-align: center;
+      animation: fadeIn 0.5s ease-in;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .screen.hidden {
+      display: none !important;
+    }
+
+    /* タイトル画面 */
+    #title-screen h1 {
+      font-size: 48px;
+      color: #FF6B9D;
+      margin-bottom: 20px;
+    }
+
+    #title-screen p {
+      font-size: 18px;
+      color: #666;
+      margin-bottom: 30px;
+    }
+
+    /* ゲーム画面 */
+    #game-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+
+    #character {
+      width: 200px;
+      height: 200px;
+      margin-bottom: 10px;
+    }
+
+    #question-count {
+      font-size: 14px;
+      color: #999;
+      margin-bottom: 10px;
+    }
+
+    #question-text {
+      font-size: 80px;
+      font-weight: bold;
+      color: #FF6B9D;
+      margin: 20px 0;
+      letter-spacing: 10px;
+    }
+
+    #romaji-input {
+      font-size: 24px;
+      padding: 15px 20px;
+      border: 2px solid #4ECDC4;
+      border-radius: 10px;
+      width: 100%;
+      max-width: 300px;
+      text-align: center;
+      font-family: monospace;
+    }
+
+    #romaji-input:focus {
+      outline: none;
+      border-color: #FF6B9D;
+      box-shadow: 0 0 10px rgba(255, 107, 157, 0.3);
+    }
+
+    .button-group {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      margin: 10px 0;
+    }
+
+    button {
+      padding: 12px 24px;
+      font-size: 16px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-weight: bold;
+    }
+
+    #start-btn, #submit-btn {
+      background: #FF6B9D;
+      color: white;
+      min-width: 150px;
+    }
+
+    #start-btn:hover, #submit-btn:hover {
+      background: #E85A8F;
+      transform: scale(1.05);
+    }
+
+    #skip-btn, #restart-btn {
+      background: #4ECDC4;
+      color: white;
+      min-width: 150px;
+    }
+
+    #skip-btn:hover, #restart-btn:hover {
+      background: #3BA39F;
+      transform: scale(1.05);
+    }
+
+    #progress-bar {
+      width: 100%;
+      height: 20px;
+      background: #e0e0e0;
+      border-radius: 10px;
+      overflow: hidden;
+      margin: 20px 0;
+    }
+
+    #progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #4ECDC4, #FF6B9D);
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    #score-display {
+      font-size: 16px;
+      color: #666;
+      margin: 10px 0;
+    }
+
+    #feedback {
+      font-size: 18px;
+      font-weight: bold;
+      margin: 10px 0;
+      min-height: 30px;
+      animation: fadeIn 0.3s ease;
+    }
+
+    #feedback.correct {
+      color: #00D97F;
+    }
+
+    #feedback.incorrect {
+      color: #FF6B6B;
+    }
+
+    /* 結果画面 */
+    #result-screen h2 {
+      font-size: 36px;
+      color: #FF6B9D;
+      margin-bottom: 30px;
+    }
+
+    #result-screen p {
+      font-size: 20px;
+      color: #333;
+      margin: 15px 0;
+    }
+
+    #accuracy {
+      font-size: 32px;
+      color: #FF6B9D;
+      font-weight: bold;
+    }
+
+    #result-count {
+      font-size: 24px;
+      color: #4ECDC4;
+      font-weight: bold;
+    }
+
+    /* モバイル対応 */
+    @media (max-width: 600px) {
+      .screen {
+        padding: 20px;
+      }
+
+      #title-screen h1 {
+        font-size: 32px;
+      }
+
+      #question-text {
+        font-size: 60px;
+      }
+
+      button {
+        padding: 10px 20px;
+        font-size: 14px;
+        min-width: 100px;
+      }
+
+      .button-group {
+        flex-direction: column;
+      }
+
+      #romaji-input {
+        font-size: 18px;
+        padding: 12px 15px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<!-- タイトル画面 -->
+<div id="title-screen" class="screen">
+  <h1>ローマ字マスター</h1>
+  <p>ひらがなをローマ字に変換しよう！</p>
+  <p style="font-size: 14px; color: #999; margin-bottom: 30px;">訓令式ローマ字対応</p>
+  <button id="start-btn">ゲーム開始</button>
+</div>
+
+<!-- ゲーム画面 -->
+<div id="game-screen" class="screen hidden">
+  <svg id="character" width="200" height="200" viewBox="0 0 200 200"></svg>
+
+  <div id="question-count"></div>
+  <div id="question-text"></div>
+
+  <input id="romaji-input" type="text" placeholder="ローマ字を入力..." autocomplete="off">
+
+  <div id="feedback"></div>
+
+  <div class="button-group">
+    <button id="submit-btn">送信 (Enter)</button>
+    <button id="skip-btn">スキップ (Esc)</button>
+  </div>
+
+  <div id="progress-bar">
+    <div id="progress-fill"></div>
+  </div>
+
+  <div id="score-display"></div>
+</div>
+
+<!-- 結果画面 -->
+<div id="result-screen" class="screen hidden">
+  <h2>ゲーム終了！</h2>
+  <p>正解率: <span id="accuracy"></span>%</p>
+  <p>正解: <span id="result-count"></span>/20</p>
+
+  <div id="answers-summary" style="margin: 30px 0; text-align: left; max-height: 400px; overflow-y: auto;">
+    <h3 style="text-align: center; color: #FF6B9D; margin-bottom: 15px;">回答一覧</h3>
+    <table id="answers-table" style="width: 100%; border-collapse: collapse; font-size: 14px;">
+      <thead>
+        <tr style="background: #FF6B9D; color: white;">
+          <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">問題</th>
+          <th style="padding: 8px; border: 1px solid #ddd;">あなたの回答</th>
+          <th style="padding: 8px; border: 1px solid #ddd;">正解</th>
+          <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">結果</th>
+        </tr>
+      </thead>
+      <tbody id="answers-body">
+      </tbody>
+    </table>
+  </div>
+
+  <button id="restart-btn">もう一度挑戦</button>
+</div>
+
+<!-- 不正解で終了画面 -->
+<div id="game-over-screen" class="screen hidden">
+  <svg id="game-over-character" width="200" height="200" viewBox="0 0 200 200"></svg>
+
+  <h2 style="color: #FF6B6B; margin: 30px 0;">不正解...ゲーム終了</h2>
+
+  <div style="background: #fff3cd; padding: 20px; border-radius: 10px; margin: 20px 0;">
+    <p style="font-size: 18px; margin-bottom: 15px;">
+      正解: <span id="correct-answer-display" style="font-size: 24px; font-weight: bold; color: #333;"></span>
+    </p>
+    <p style="font-size: 16px; color: #666;">
+      連続正解数: <span id="consecutive-count" style="font-size: 20px; font-weight: bold; color: #FF6B9D;"></span> / 20
+    </p>
+  </div>
+
+  <button id="retry-btn" style="background: #4ECDC4; color: white; padding: 12px 24px; font-size: 16px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">もう一度挑戦</button>
+</div>
+
+<!-- Congratulations!画面 -->
+<div id="congratulations-screen" class="screen hidden">
+  <svg id="congratulations-character" width="200" height="200" viewBox="0 0 200 200"></svg>
+
+  <h1 style="font-size: 48px; color: #FF6B9D; margin: 30px 0;">Congratulations!</h1>
+  <h2 style="font-size: 28px; color: #4ECDC4; margin-bottom: 30px;">20問連続正解達成！</h2>
+
+  <div style="background: #e8f5e9; padding: 20px; border-radius: 10px; margin: 20px 0; border: 3px solid #4ECDC4;">
+    <p style="font-size: 20px; color: #333; font-weight: bold;">素晴らしい！あなたはローマ字マスターです！</p>
+  </div>
+
+  <button id="congratulations-restart-btn" style="background: #FF6B9D; color: white; padding: 12px 24px; font-size: 16px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; min-width: 150px;">リスタート</button>
+</div>
+
+<script>
+// ゲーム状態
+let gameActive = false;
+let currentQuestion = 0;
+let correctCount = 0;
+let questions = [];
+let userAnswers = [];
+let showingFeedback = false;
+
+// ひらがな ↔ ローマ字データベース（訓令式）
+const romajiMap = {
+  // 基本五十音（あ行）
+  'あ': ['a'],
+  'い': ['i'],
+  'う': ['u'],
+  'え': ['e'],
+  'お': ['o'],
+
+  // か行
+  'か': ['ka'],
+  'き': ['ki'],
+  'く': ['ku'],
+  'け': ['ke'],
+  'こ': ['ko'],
+
+  // さ行
+  'さ': ['sa'],
+  'し': ['si', 'shi'],  // 訓令式：si、改定訣令式も対応
+  'す': ['su'],
+  'せ': ['se'],
+  'そ': ['so'],
+
+  // た行
+  'た': ['ta'],
+  'ち': ['ti', 'chi'],  // 訓令式：ti
+  'つ': ['tu', 'tsu'],  // 訓令式：tu
+  'て': ['te'],
+  'と': ['to'],
+
+  // な行
+  'な': ['na'],
+  'に': ['ni'],
+  'ぬ': ['nu'],
+  'ね': ['ne'],
+  'の': ['no'],
+
+  // は行
+  'は': ['ha'],
+  'ひ': ['hi'],
+  'ふ': ['hu', 'fu'],  // 訓令式：hu
+  'へ': ['he'],
+  'ほ': ['ho'],
+
+  // ま行
+  'ま': ['ma'],
+  'み': ['mi'],
+  'む': ['mu'],
+  'め': ['me'],
+  'も': ['mo'],
+
+  // や行
+  'や': ['ya'],
+  'ゆ': ['yu'],
+  'よ': ['yo'],
+
+  // ら行
+  'ら': ['ra'],
+  'り': ['ri'],
+  'る': ['ru'],
+  'れ': ['re'],
+  'ろ': ['ro'],
+
+  // わ行
+  'わ': ['wa'],
+  'を': ['wo'],
+  'ん': ['n'],
+
+  // 濁音（が行）
+  'が': ['ga'],
+  'ぎ': ['gi'],
+  'ぐ': ['gu'],
+  'げ': ['ge'],
+  'ご': ['go'],
+
+  // ざ行
+  'ざ': ['za'],
+  'じ': ['zi', 'ji'],  // 訓令式：zi
+  'ず': ['zu'],
+  'ぜ': ['ze'],
+  'ぞ': ['zo'],
+
+  // だ行
+  'だ': ['da'],
+  'ぢ': ['di'],
+  'づ': ['du'],
+  'で': ['de'],
+  'ど': ['do'],
+
+  // ば行
+  'ば': ['ba'],
+  'び': ['bi'],
+  'ぶ': ['bu'],
+  'べ': ['be'],
+  'ぼ': ['bo'],
+
+  // ぱ行
+  'ぱ': ['pa'],
+  'ぴ': ['pi'],
+  'ぷ': ['pu'],
+  'ぺ': ['pe'],
+  'ぽ': ['po'],
+
+  // 拗音（きゃ行）
+  'きゃ': ['kya'],
+  'きゅ': ['kyu'],
+  'きょ': ['kyo'],
+
+  // しゃ行
+  'しゃ': ['sya', 'sha'],
+  'しゅ': ['syu', 'shu'],
+  'しょ': ['syo', 'sho'],
+
+  // ちゃ行
+  'ちゃ': ['tya', 'cha'],
+  'ちゅ': ['tyu', 'chu'],
+  'ちょ': ['tyo', 'cho'],
+
+  // にゃ行
+  'にゃ': ['nya'],
+  'にゅ': ['nyu'],
+  'にょ': ['nyo'],
+
+  // ひゃ行
+  'ひゃ': ['hya'],
+  'ひゅ': ['hyu'],
+  'ひょ': ['hyo'],
+
+  // みゃ行
+  'みゃ': ['mya'],
+  'みゅ': ['myu'],
+  'みょ': ['myo'],
+
+  // りゃ行
+  'りゃ': ['rya'],
+  'りゅ': ['ryu'],
+  'りょ': ['ryo'],
+
+  // ぎゃ行（濁拗音）
+  'ぎゃ': ['gya'],
+  'ぎゅ': ['gyu'],
+  'ぎょ': ['gyo'],
+
+  // じゃ行
+  'じゃ': ['zya', 'ja'],
+  'じゅ': ['zyu', 'ju'],
+  'じょ': ['zyo', 'jo'],
+
+  // びゃ行
+  'びゃ': ['bya'],
+  'びゅ': ['byu'],
+  'びょ': ['byo'],
+
+  // ぴゃ行
+  'ぴゃ': ['pya'],
+  'ぴゅ': ['pyu'],
+  'ぴょ': ['pyo'],
+};
+
+// ゲーム関数
+function startGame() {
+  gameActive = true;
+  currentQuestion = 0;
+  correctCount = 0;
+  questions = [];
+  userAnswers = [];
+
+  // 20問をランダムに選択（濁音・拗音の確率を上げる）
+  const allHiragana = Object.keys(romajiMap);
+
+  // 濁音・拗音のキーを抽出
+  const dakuon_youon = allHiragana.filter(k =>
+    // 濁音（が行、ざ行、だ行、ば行）
+    k.match(/^[がぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽ]/) ||
+    // 拗音（きゃ、しゃ、ちゃ、にゃ、ひゃ、みゃ、りゃ、ぎゃ、じゃ、びゃ、ぴゃ）
+    k.includes('ゃ') || k.includes('ゅ') || k.includes('ょ')
+  );
+
+  // 濁音・拗音を複数回含める（確率を上げる）
+  const questionPool = [...allHiragana, ...dakuon_youon, ...dakuon_youon];
+  const shuffled = questionPool.sort(() => Math.random() - 0.5);
+
+  // 重複を削除して20問選択
+  const uniqueQuestions = [...new Set(shuffled.slice(0, 40))];
+  questions = uniqueQuestions.slice(0, 20);
+
+  // 画面切り替え
+  document.getElementById('title-screen').classList.add('hidden');
+  document.getElementById('game-screen').classList.remove('hidden');
+  document.getElementById('result-screen').classList.add('hidden');
+
+  nextQuestion();
+  document.getElementById('romaji-input').focus();
+}
+
+function nextQuestion() {
+  showingFeedback = false;
+  document.getElementById('feedback').textContent = '';
+  document.getElementById('romaji-input').value = '';
+
+  if (currentQuestion < questions.length) {
+    document.getElementById('question-count').textContent = `問題 ${currentQuestion + 1} / 20`;
+    document.getElementById('question-text').textContent = questions[currentQuestion];
+
+    // プログレスバー更新
+    const progress = (currentQuestion / 20) * 100;
+    document.getElementById('progress-fill').style.width = progress + '%';
+    document.getElementById('score-display').textContent = `正解: ${correctCount} / 20`;
+
+    // キャラクター表示（ニュートラル）
+    drawCharacter('normal');
+    document.getElementById('romaji-input').focus();
+  } else {
+    endGame();
+  }
+}
+
+function checkAnswer() {
+  if (showingFeedback) return;  // フィードバック表示中は無視
+
+  const userInput = document.getElementById('romaji-input').value.trim().toLowerCase();
+  const correctAnswers = romajiMap[questions[currentQuestion]];
+
+  const isCorrect = correctAnswers.includes(userInput);
+
+  showingFeedback = true;
+
+  if (isCorrect) {
+    correctCount++;
+    document.getElementById('feedback').textContent = '✓ 正解！';
+    document.getElementById('feedback').className = 'correct';
+    drawCharacter('happy');
+
+    userAnswers.push({
+      hiragana: questions[currentQuestion],
+      userInput,
+      isCorrect: true
+    });
+
+    // 1秒後に次の処理
+    setTimeout(() => {
+      currentQuestion++;
+
+      // 20問連続正解？
+      if (correctCount === 20) {
+        showCongratulations();
+      } else {
+        nextQuestion();
+      }
+    }, 1000);
+  } else {
+    // 不正解で即ゲーム終了
+    document.getElementById('feedback').textContent = `✗ 不正解... 正解: ${correctAnswers[0].toUpperCase()}`;
+    document.getElementById('feedback').className = 'incorrect';
+    drawCharacter('sad');
+
+    userAnswers.push({
+      hiragana: questions[currentQuestion],
+      userInput,
+      isCorrect: false
+    });
+
+    // 1秒後に不正解画面へ
+    setTimeout(() => {
+      showGameOver();
+    }, 1000);
+  }
+}
+
+function skipQuestion() {
+  if (showingFeedback) return;
+
+  document.getElementById('feedback').textContent = 'スキップしました（不正解）';
+  document.getElementById('feedback').className = 'incorrect';
+  drawCharacter('sad');
+
+  userAnswers.push({
+    hiragana: questions[currentQuestion],
+    userInput: '',
+    isCorrect: false
+  });
+
+  showingFeedback = true;
+
+  // スキップも不正解と同じ扱い → ゲーム終了
+  setTimeout(() => {
+    showGameOver();
+  }, 1000);
+}
+
+// 不正解で終了した画面を表示
+function showGameOver() {
+  gameActive = false;
+
+  // 正解を表示
+  const correctAnswers = romajiMap[questions[currentQuestion]];
+  document.getElementById('correct-answer-display').textContent = correctAnswers[0].toUpperCase();
+  document.getElementById('consecutive-count').textContent = correctCount;
+
+  // キャラを悲しい表情で描画
+  const charSvg = document.getElementById('game-over-character');
+  charSvg.innerHTML = document.getElementById('character').innerHTML;
+
+  // 画面切り替え
+  document.getElementById('game-screen').classList.add('hidden');
+  document.getElementById('game-over-screen').classList.remove('hidden');
+}
+
+// 20連続正解達成画面を表示
+function showCongratulations() {
+  gameActive = false;
+
+  // キャラを喜び表情で描画
+  const charSvg = document.getElementById('congratulations-character');
+  charSvg.innerHTML = document.getElementById('character').innerHTML;
+
+  // 画面切り替え
+  document.getElementById('game-screen').classList.add('hidden');
+  document.getElementById('congratulations-screen').classList.remove('hidden');
+}
+
+// ゲームをリセットして再スタート
+function resetAndRestart() {
+  // ゲーム状態をリセット
+  gameActive = true;
+  currentQuestion = 0;
+  correctCount = 0;
+  questions = [];
+  userAnswers = [];
+  showingFeedback = false;
+
+  // 不正解画面とCongratulations画面を隠す
+  document.getElementById('game-over-screen').classList.add('hidden');
+  document.getElementById('congratulations-screen').classList.add('hidden');
+
+  // 新しい20問を生成してゲーム開始
+  startGame();
+}
+
+// 旧endGame関数（result-screenは使用しないが、念のため残す）
+function endGame() {
+  gameActive = false;
+
+  // 正解率を計算
+  const accuracy = Math.round((correctCount / 20) * 100);
+
+  document.getElementById('accuracy').textContent = accuracy;
+  document.getElementById('result-count').textContent = `${correctCount}/20`;
+
+  // 回答一覧を表示
+  const tbody = document.getElementById('answers-body');
+  tbody.innerHTML = '';
+
+  userAnswers.forEach((answer, index) => {
+    const row = document.createElement('tr');
+    const isCorrect = answer.isCorrect;
+
+    const hiragana = answer.hiragana;
+    const userInput = answer.userInput || '-';
+    const correctAnswers = romajiMap[hiragana][0].toUpperCase();
+
+    row.innerHTML = `
+      <td style="padding: 8px; border: 1px solid #ddd; text-align: center; font-size: 18px; font-weight: bold;">${hiragana}</td>
+      <td style="padding: 8px; border: 1px solid #ddd; color: ${isCorrect ? '#00D97F' : '#FF6B6B'};">${userInput}</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">${correctAnswers}</td>
+      <td style="padding: 8px; border: 1px solid #ddd; text-align: center; font-weight: bold; color: ${isCorrect ? '#00D97F' : '#FF6B6B'};">
+        ${isCorrect ? '✓ 正解' : '✗ 不正解'}
+      </td>
+    `;
+
+    tbody.appendChild(row);
+  });
+
+  // 画面切り替え
+  document.getElementById('game-screen').classList.add('hidden');
+  document.getElementById('result-screen').classList.remove('hidden');
+}
+
+function resetGame() {
+  document.getElementById('title-screen').classList.remove('hidden');
+  document.getElementById('game-screen').classList.add('hidden');
+  document.getElementById('result-screen').classList.add('hidden');
+}
+
+// SVGキャラクター描画
+function drawCharacter(expression) {
+  const svg = document.getElementById('character');
+
+  // 顔のベース（子供っぽく丸くする）
+  const face = '<circle cx="100" cy="110" r="65" fill="#fdbcb4"/>';
+
+  // 眉（表情で変化）
+  let eyebrows;
+  if (expression === 'happy') {
+    // 喜び時は眉をさらに上げる
+    eyebrows = '<path d="M 70 65 Q 80 55 90 65" fill="none" stroke="#333" stroke-width="2.5" stroke-linecap="round"/>' +
+               '<path d="M 110 65 Q 120 55 130 65" fill="none" stroke="#333" stroke-width="2.5" stroke-linecap="round"/>';
+  } else if (expression === 'sad') {
+    // 泣く時は眉を下げる
+    eyebrows = '<path d="M 70 80 Q 80 75 90 80" fill="none" stroke="#333" stroke-width="2" stroke-linecap="round"/>' +
+               '<path d="M 110 80 Q 120 75 130 80" fill="none" stroke="#333" stroke-width="2" stroke-linecap="round"/>';
+  } else {
+    // デフォルト：上げた眉で可愛い
+    eyebrows = '<path d="M 70 70 Q 80 60 90 70" fill="none" stroke="#333" stroke-width="2.5" stroke-linecap="round"/>' +
+               '<path d="M 110 70 Q 120 60 130 70" fill="none" stroke="#333" stroke-width="2.5" stroke-linecap="round"/>';
+  }
+
+  // 目（表情で変化）
+  let eyes;
+  if (expression === 'happy') {
+    // 喜び時は目を細める
+    eyes = '<ellipse cx="80" cy="95" rx="6" ry="8" fill="#fff"/>' +
+           '<path d="M 75 95 Q 80 100 85 95" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>' +
+           '<ellipse cx="120" cy="95" rx="6" ry="8" fill="#fff"/>' +
+           '<path d="M 115 95 Q 120 100 125 95" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>';
+  } else if (expression === 'sad') {
+    // 泣く時は目を閉じて、涙を描く
+    eyes = '<path d="M 75 95 Q 80 100 85 95" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round"/>' +
+           '<path d="M 115 95 Q 120 100 125 95" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round"/>' +
+           // 涙
+           '<circle cx="75" cy="110" r="3" fill="#4ECDC4"/>' +
+           '<circle cx="125" cy="110" r="3" fill="#4ECDC4"/>' +
+           '<circle cx="75" cy="118" r="2.5" fill="#4ECDC4"/>' +
+           '<circle cx="125" cy="118" r="2.5" fill="#4ECDC4"/>';
+  } else {
+    // デフォルト：大きな目で可愛い
+    eyes = '<circle cx="80" cy="92" r="10" fill="#fff"/>' +
+           '<circle cx="80" cy="92" r="6" fill="#000"/>' +
+           '<circle cx="82" cy="89" r="2.5" fill="#fff"/>' +
+           '<circle cx="120" cy="92" r="10" fill="#fff"/>' +
+           '<circle cx="120" cy="92" r="6" fill="#000"/>' +
+           '<circle cx="122" cy="89" r="2.5" fill="#fff"/>';
+  }
+
+  // 口（表情で変化）
+  let mouth;
+  if (expression === 'happy') {
+    // 自然ににっこり
+    mouth = '<path d="M 90 120 Q 100 125 110 120" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round"/>';
+  } else if (expression === 'sad') {
+    mouth = '<path d="M 90 130 Q 100 123 110 130" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>';
+  } else {
+    // デフォルト：優しい微笑み
+    mouth = '<path d="M 90 120 Q 100 125 110 120" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round"/>';
+  }
+
+  svg.innerHTML = `<svg width="200" height="200" viewBox="0 0 200 200">${face}${eyebrows}${eyes}${mouth}</svg>`;
+}
+
+// イベントハンドラ
+document.getElementById('start-btn').addEventListener('click', startGame);
+document.getElementById('submit-btn').addEventListener('click', checkAnswer);
+document.getElementById('skip-btn').addEventListener('click', skipQuestion);
+document.getElementById('restart-btn').addEventListener('click', resetGame);
+
+// 新しい画面のイベントハンドラ
+document.getElementById('retry-btn').addEventListener('click', resetAndRestart);
+document.getElementById('congratulations-restart-btn').addEventListener('click', () => {
+  // Congratulations画面からのリスタート
+  document.getElementById('title-screen').classList.remove('hidden');
+  document.getElementById('congratulations-screen').classList.add('hidden');
+});
+
+// キーボード操作
+document.getElementById('romaji-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    checkAnswer();
+  } else if (e.key === 'Escape') {
+    skipQuestion();
+  }
+});
+
+// 初期状態：キャラクターを描画
+drawCharacter('normal');
+</script>
+
+</body>
+</html>
