@@ -1,0 +1,17 @@
+# IDE & Editor
+.claude/
+.vscode/
+.idea/
+
+# Documentation
+*.md
+
+# Other HTML files (keep only index.html)
+onigiri.html
+onigiri_game.html
+tetris.html
+visualize_*.html
+
+# System files
+.DS_Store
+Thumbs.db
