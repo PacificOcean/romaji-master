@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>おにぎりくんはビールが大好き！</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #1d2b53;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      gap: 16px;
+    }
+    canvas {
+      display: block;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      border: 3px solid #5f574f;
+      max-width: 100%;
+    }
+    /* D-pad for mobile */
+    #dpad {
+      display: none;
+      grid-template-columns: repeat(3, 64px);
+      grid-template-rows: repeat(3, 64px);
+      gap: 4px;
+    }
+    @media (max-width: 700px), (pointer: coarse) {
+      #dpad { display: grid; }
+    }
+    .db {
+      background: rgba(255,255,255,0.15);
+      border: 2px solid rgba(255,255,255,0.3);
+      border-radius: 10px;
+      font-size: 26px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+    }
+    .db:active, .db.pressed { background: rgba(255,255,255,0.4); }
+    .de { visibility: hidden; }
+  </style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+
+<div id="dpad">
+  <div class="de db"></div>
+  <div class="db" id="bu">▲</div>
+  <div class="de db"></div>
+  <div class="db" id="bl">◀</div>
+  <div class="db" id="bc" style="font-size:18px;color:#ffec27;">ENTER</div>
+  <div class="db" id="br">▶</div>
+  <div class="de db"></div>
+  <div class="db" id="bd">▼</div>
+  <div class="de db"></div>
+</div>
+
+<script>
+// ── Constants ─────────────────────────────────────────────
+const SCALE = 8;
+const W = 160, H = 120;      // original Pyxel screen size
+const FPS = 30;
+
+// Pyxel 16-color palette
+const C = [
+  '#000000','#1d2b53','#7e2553','#008751',
+  '#ab5236','#5f574f','#c2c3c7','#fff1e8',
+  '#ff004d','#ffa300','#ffec27','#00e436',
+  '#29adff','#83769c','#ff77a8','#ffccaa'
+];
+
+const canvas = document.getElementById('c');
+canvas.width  = W * SCALE;
+canvas.height = H * SCALE;
+const ctx = canvas.getContext('2d');
+
+// ── State ─────────────────────────────────────────────────
+let state = 'title';  // 'title' | 'playing' | 'gameover'
+let player, items, spItems, bombs;
+let score, timebar, itemsGot, bombsGot;
+let pstate = 'normal', pstateTimer = 0;
+let popups = [];
+let frameCounter = 0; // アニメーション用フレームカウンター
+
+function ri(a, b) { return a + Math.floor(Math.random() * (b - a + 1)); }
+
+function initGame() {
+  player = { x: 37, y: 38 };
+  score = 0; timebar = 99; itemsGot = 0; bombsGot = 0;
+  pstate = 'normal'; pstateTimer = 0; popups = [];
+  // Original initial positions
+  items   = Array.from({length:4}, (_,i) => ({x:(i+4)*60,  y:ri(6,104), active:true}));
+  spItems = Array.from({length:2}, (_,i) => ({x:(i+1)*950, y:ri(6,104), active:true}));
+  bombs   = Array.from({length:3}, (_,i) => ({x:(i+3)*77,  y:ri(6,104), active:true}));
+}
+
+// ── Input ─────────────────────────────────────────────────
+const keys  = {};
+const touch = {};
+
+document.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (['ArrowUp','ArrowDown','Space'].includes(e.code)) e.preventDefault();
+  if (e.code === 'Enter') onEnter();
+});
+document.addEventListener('keyup', e => { keys[e.code] = false; });
+
+function isKey(code) { return !!(keys[code] || touch[code]); }
+
+function bindBtn(id, code) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const on  = e => { e.preventDefault(); touch[code] = true;  el.classList.add('pressed'); };
+  const off = e => { e.preventDefault(); touch[code] = false; el.classList.remove('pressed'); };
+  el.addEventListener('touchstart', on, {passive:false});
+  el.addEventListener('touchend',   off, {passive:false});
+  el.addEventListener('mousedown',  on);
+  el.addEventListener('mouseup',    off);
+  el.addEventListener('mouseleave', off);
+}
+bindBtn('bu', 'ArrowUp');
+bindBtn('bd', 'ArrowDown');
+bindBtn('bl', 'ArrowLeft');
+bindBtn('br', 'ArrowRight');
+document.getElementById('bc').addEventListener('click', onEnter);
+canvas.addEventListener('click', () => { if (state !== 'playing') onEnter(); });
+
+function onEnter() {
+  if (state === 'title' || state === 'gameover') { state = 'playing'; initGame(); }
+}
+
+// ── Draw helpers ──────────────────────────────────────────
+function drawEmoji(e, gx, gy) {
+  ctx.font = `${14 * SCALE}px serif`;
+  ctx.textAlign    = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText(e, gx * SCALE, gy * SCALE);
+}
+
+// 元のPyxelリソースから抽出した正確なピクセルデータで描画
+function drawPlayer(x, y, expression) {
+  const s = SCALE;
+  const px = x * s;
+  const py = y * s;
+
+  // Pyxelパレット（正確な色）
+  const palette = {
+    '0': '#000000', '1': '#1d2b53', '2': '#7e2553', '3': '#008751',
+    '4': '#ab5236', '5': '#5f574f', '6': '#c2c3c7', '7': '#fff1e8',
+    '8': '#ff004d', '9': '#ffa300', 'a': '#ab5236', 'b': '#00e436',
+    'c': '#c2c3c7', 'd': '#83769c', 'e': '#ff77a8', 'f': '#ffccaa'
+  };
+
+  // 元のPyxelリソースから抽出した正確なピクセルデータ
+  // 元のPyxelリソースから抽出した正確なピクセルデータ
+  const faces = {
+    'normal': [
+      'cccccccccccccccc',
+      'cccccccccccccccc',
+      'cccccca9a9c9cccc',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000'
+    ],
+    'happy': [
+      'ccc7711111177ccc',
+      'cccdaaaaaaaadddd',
+      'cc000000000000cc',
+      '0000888088800000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000'
+    ],
+    'scared': [
+      'cccccc7777cccccc',
+      'cccccccccccccccc',
+      'cccc9a99aa99cccc',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000'
+    ],
+    'excited': [
+      'ccc7777777777ccc',
+      'cccd77777777dccc',
+      'cccc00000000cccc',
+      '0000008888000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000'
+    ]
+  };
+
+  const faceKey = expression || 'normal';
+  const pixelData = faces[faceKey] || faces['normal'];
+
+  // ピクセルを描画
+  for (let row = 0; row < 16; row++) {
+    for (let col = 0; col < 16; col++) {
+      const colorKey = pixelData[row][col];
+      const color = palette[colorKey] || '#c2c3c7';
+
+      // 透明色（パレット12=灰色で背景と同じ）はスキップしない（背景を表現）
+      ctx.fillStyle = color;
+      ctx.fillRect(px + col * s, py + row * s, s, s);
+    }
+  }
+}
+
+function drawText(text, gx, gy, color) {
+  ctx.font = `bold ${5 * SCALE}px 'Courier New', monospace`;
+  ctx.textAlign    = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = color;
+  ctx.fillText(text, gx * SCALE, gy * SCALE);
+}
+
+// Pyxel-style shadow text (offset shadow then bright text on top)
+function st(text, gx, gy, fg = C[7], bg = C[1]) {
+  drawText(text, gx+1, gy+1, bg);
+  drawText(text, gx,   gy,   fg);
+}
+
+// ── Update ────────────────────────────────────────────────
+function update() {
+  frameCounter++;
+  if (state !== 'playing') return;
+
+  // Player movement (4px/frame = original speed)
+  if (isKey('ArrowLeft'))  player.x = Math.max(player.x - 4, 0);
+  if (isKey('ArrowRight')) player.x = Math.min(player.x + 4, W - 16);
+  if (isKey('ArrowUp'))    player.y = Math.max(player.y - 4, 0);
+  if (isKey('ArrowDown'))  player.y = Math.min(player.y + 4, H - 16);
+
+  if (pstateTimer > 0) pstateTimer--; else pstate = 'normal';
+
+  // Regular beer — moves at 3px/frame, respawn +240
+  items.forEach(it => {
+    if (it.active && Math.abs(it.x - player.x) < 12 && Math.abs(it.y - player.y) < 12) {
+      it.active = false;
+      score += 10; itemsGot++; timebar += 3;
+      pstate = 'happy'; pstateTimer = 8;
+      popups.push({x:it.x+8, y:it.y, txt:'+10', col:C[10], life:28});
+    }
+    it.x -= 3;
+    if (it.x < -10) { it.x += 240; it.y = ri(6,104); it.active = true; }
+  });
+
+  // Special beer — moves at 5px/frame, respawn +1900
+  spItems.forEach(it => {
+    if (it.active && Math.abs(it.x - player.x) < 12 && Math.abs(it.y - player.y) < 12) {
+      it.active = false;
+      score += 100; itemsGot++; timebar += 10;
+      pstate = 'excited'; pstateTimer = 15;
+      popups.push({x:it.x+8, y:it.y, txt:'+100', col:C[14], life:35});
+    }
+    it.x -= 5;
+    if (it.x < -10) { it.x += 1900; it.y = ri(6,104); it.active = true; }
+  });
+
+  // Bomb — moves at 2px/frame, respawn +231
+  bombs.forEach(b => {
+    if (b.active && Math.abs(b.x - player.x) < 12 && Math.abs(b.y - player.y) < 12) {
+      b.active = false;
+      score -= 50; bombsGot++; timebar -= 50;
+      pstate = 'scared'; pstateTimer = 20;
+      popups.push({x:b.x+8, y:b.y, txt:'-50', col:C[8], life:35});
+    }
+    b.x -= 2;
+    if (b.x < -10) { b.x += 231; b.y = ri(6,104); b.active = true; }
+  });
+
+  // Time — original: 0.2415/frame at 30fps
+  timebar -= 0.2415;
+  popups = popups.filter(p => { p.y -= 0.35; p.life--; return p.life > 0; });
+
+  if (timebar < 0) state = 'gameover';
+}
+
+// ── Draw ──────────────────────────────────────────────────
+function draw() {
+  // ── GAME OVER ──
+  if (state === 'gameover') {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const cx = canvas.width / 2, cy = canvas.height / 2;
+
+    ctx.font = `bold ${11 * SCALE}px 'Courier New'`;
+    ctx.fillStyle = C[8];  ctx.fillText('FINISH', cx + SCALE, cy - 22*SCALE);
+    ctx.fillStyle = C[7];  ctx.fillText('FINISH', cx,         cy - 22*SCALE);
+
+    ctx.font = `bold ${6 * SCALE}px 'Courier New'`;
+    ctx.fillStyle = C[1];  ctx.fillText(`Score: ${score}`, cx + SCALE, cy);
+    ctx.fillStyle = C[10]; ctx.fillText(`Score: ${score}`, cx,         cy);
+
+    ctx.font = `bold ${5 * SCALE}px 'Courier New'`;
+    ctx.fillStyle = C[1];  ctx.fillText('PUSH ENTER / TAP TO RESTART', cx + SCALE, cy + 18*SCALE);
+    ctx.fillStyle = C[7];  ctx.fillText('PUSH ENTER / TAP TO RESTART', cx,         cy + 18*SCALE);
+    return;
+  }
+
+  // ── BACKGROUND ──
+  ctx.fillStyle = C[12];   // #29adff — Pyxel color 12
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // ── TIME BAR ──
+  // Background track
+  ctx.fillStyle = C[5];
+  ctx.fillRect(50*SCALE, 2*SCALE, 90*SCALE, 4*SCALE);
+  // Fill (cap at 90px, same as original)
+  const bw = Math.max(0, Math.min(90, timebar));
+  const bc = timebar > 60 ? C[11] : timebar > 40 ? C[10] : timebar > 20 ? C[9] : C[8];
+  ctx.fillStyle = bc;
+  ctx.fillRect(50*SCALE, 2*SCALE, bw*SCALE, 4*SCALE);
+  st('TIME', 36, 2);
+
+  // ── ITEMS ──
+  items.forEach(it => { if (it.active) drawEmoji('🍺', it.x, it.y); });
+  spItems.forEach(it => { if (it.active) drawEmoji('🍻', it.x, it.y); });
+  bombs.forEach(b => { if (b.active) drawEmoji('💣', b.x, b.y); });
+
+  // ── PLAYER ──
+  drawPlayer(player.x, player.y, pstate);
+
+  // ── HUD ──
+  st(`Score:${String(score).padStart(4)}`, 4, 4);
+  st(`Beer:${itemsGot}  Bomb:${bombsGot}`, 4, 110);
+
+  // ── SCORE POPUPS ──
+  popups.forEach(p => {
+    ctx.globalAlpha = Math.min(1, p.life / 12);
+    ctx.font = `bold ${5*SCALE}px 'Courier New'`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = p.col;
+    ctx.fillText(p.txt, p.x * SCALE, p.y * SCALE);
+    ctx.globalAlpha = 1;
+  });
+
+  // ── TITLE OVERLAY ──
+  if (state === 'title') {
+    ctx.fillStyle = 'rgba(13,20,50,0.82)';
+    ctx.fillRect(26*SCALE, 12*SCALE, 108*SCALE, 96*SCALE);
+
+    st('PUSH ENTER / TAP', 33, 16);
+
+    // Instructions matching original layout
+    drawEmoji('🍙', 30, 34);  st(': PLAYER',         50, 41);
+    drawEmoji('🍻', 30, 52);  st(': 100pt / time+++', 50, 59);
+    drawEmoji('🍺', 30, 68);  st(':  10pt / time+',   50, 75);
+    drawEmoji('💣', 30, 84);  st(': -50pt / time---', 50, 91);
+  }
+}
+
+// ── Loop at 30fps (matches original Pyxel default) ────────
+setInterval(() => { update(); draw(); }, 1000 / FPS);
+</script>
+</body>
+</html>

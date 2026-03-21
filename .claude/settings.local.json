@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /c/Users/userpc/Documents/claude-code-demo -type f -name *.json -o -name *.yml -o -name *.yaml -o -name Makefile -o -name Procfile -o -name *.config.*)",
+      "WebFetch(domain:drive.google.com)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(find 'C:\\\\Users\\\\userpc\\\\Documents\\\\Python Scripts\\\\202108_pyxel\\\\src' -type f -name *.pyxres -o -name *.png)",
+      "Bash(unzip -o my_resource.pyxres \"pyxel_resource/image0\" -d /tmp)",
+      "Read(//tmp/pyxel_resource/**)",
+      "Bash(python3:*)",
+      "Bash(git init:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(gh auth:*)",
+      "Bash(gh repo:*)",
+      "Bash(curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg)",
+      "Bash(tee /etc/apt/sources.list.d/github-cli.list)",
+      "Bash(apt update:*)",
+      "Bash(apt install:*)"
+    ]
+  }
+}

@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>おにぎりくんのピクセルデータ可視化</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #1a1a2e;
+      color: #eee;
+      font-family: 'Arial', sans-serif;
+      padding: 20px;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 30px;
+      color: #fff1e8;
+    }
+    .container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+      gap: 30px;
+      max-width: 1600px;
+      margin: 0 auto;
+    }
+    .face-panel {
+      background: #16213e;
+      padding: 20px;
+      border-radius: 10px;
+      border: 2px solid #29adff;
+    }
+    .face-title {
+      text-align: center;
+      font-size: 20px;
+      font-weight: bold;
+      margin-bottom: 15px;
+      color: #fff1e8;
+    }
+    .canvas-wrapper {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 15px;
+      background: #29adff;
+      padding: 10px;
+      border-radius: 5px;
+    }
+    canvas {
+      image-rendering: pixelated;
+      border: 2px solid #0f3460;
+    }
+    .pixel-data {
+      background: #0f3460;
+      padding: 10px;
+      border-radius: 5px;
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+      max-height: 150px;
+      overflow-y: auto;
+      color: #00d4ff;
+    }
+    .palette {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 5px;
+      margin-top: 15px;
+    }
+    .color-swatch {
+      padding: 8px;
+      border-radius: 3px;
+      font-size: 10px;
+      text-align: center;
+      color: #000;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+
+<h1>おにぎりくんのピクセルデータ可視化</h1>
+
+<div class="container">
+  <div class="face-panel">
+    <div class="face-title">通常時 (Normal)</div>
+    <div class="canvas-wrapper">
+      <canvas id="canvas-normal" width="320" height="320"></canvas>
+    </div>
+    <div class="pixel-data" id="data-normal"></div>
+  </div>
+
+  <div class="face-panel">
+    <div class="face-title">喜び (Happy)</div>
+    <div class="canvas-wrapper">
+      <canvas id="canvas-happy" width="320" height="320"></canvas>
+    </div>
+    <div class="pixel-data" id="data-happy"></div>
+  </div>
+
+  <div class="face-panel">
+    <div class="face-title">怖い (Scared)</div>
+    <div class="canvas-wrapper">
+      <canvas id="canvas-scared" width="320" height="320"></canvas>
+    </div>
+    <div class="pixel-data" id="data-scared"></div>
+  </div>
+
+  <div class="face-panel">
+    <div class="face-title">興奮 (Excited)</div>
+    <div class="canvas-wrapper">
+      <canvas id="canvas-excited" width="320" height="320"></canvas>
+    </div>
+    <div class="pixel-data" id="data-excited"></div>
+  </div>
+</div>
+
+<div style="max-width: 1600px; margin: 30px auto; background: #16213e; padding: 20px; border-radius: 10px; border: 2px solid #29adff;">
+  <h2 style="color: #fff1e8; margin-bottom: 15px;">カラーパレット</h2>
+  <div class="palette">
+    <div class="color-swatch" style="background-color: #000000; color: #fff;">0: Black</div>
+    <div class="color-swatch" style="background-color: #1d2b53; color: #fff;">1: Navy</div>
+    <div class="color-swatch" style="background-color: #7e2553; color: #fff;">2: Purple</div>
+    <div class="color-swatch" style="background-color: #008751; color: #fff;">3: Green</div>
+    <div class="color-swatch" style="background-color: #ab5236;">4: Brown</div>
+    <div class="color-swatch" style="background-color: #5f574f; color: #fff;">5: Gray</div>
+    <div class="color-swatch" style="background-color: #c2c3c7;">6/c: Lt.Gray</div>
+    <div class="color-swatch" style="background-color: #fff1e8;">7: Cream</div>
+    <div class="color-swatch" style="background-color: #ff004d; color: #fff;">8: Red</div>
+    <div class="color-swatch" style="background-color: #ffa300;">9: Orange</div>
+    <div class="color-swatch" style="background-color: #ffec27;">a: Yellow</div>
+    <div class="color-swatch" style="background-color: #00e436;">b: Green</div>
+    <div class="color-swatch" style="background-color: #29adff;">c: Cyan</div>
+    <div class="color-swatch" style="background-color: #83769c; color: #fff;">d: Lavender</div>
+    <div class="color-swatch" style="background-color: #ff77a8;">e: Pink</div>
+    <div class="color-swatch" style="background-color: #ffccaa;">f: Peach</div>
+  </div>
+</div>
+
+<script>
+// Pyxel 16-color palette (hex color codes)
+const palette = {
+  '0': '#000000', '1': '#1d2b53', '2': '#7e2553', '3': '#008751',
+  '4': '#ab5236', '5': '#5f574f', '6': '#c2c3c7', '7': '#fff1e8',
+  '8': '#ff004d', '9': '#ffa300', 'a': '#ab5236', 'b': '#00e436',
+  'c': '#c2c3c7', 'd': '#83769c', 'e': '#ff77a8', 'f': '#ffccaa'
+};
+
+// 抽出したピクセルデータ
+const faces = {
+  'normal': {
+    data: [
+      'cccccccccccccccc',
+      'cccccccccccccccc',
+      'cccccca9a9c9cccc',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000'
+    ]
+  },
+  'happy': {
+    data: [
+      'ccc7711111177ccc',
+      'cccdaaaaaaaadddd',
+      'cc000000000000cc',
+      '0000888088800000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000'
+    ]
+  },
+  'scared': {
+    data: [
+      'cccccc7777cccccc',
+      'cccccccccccccccc',
+      'cccc9a99aa99cccc',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000'
+    ]
+  },
+  'excited': {
+    data: [
+      'ccc7777777777ccc',
+      'cccd77777777dccc',
+      'cccc00000000cccc',
+      '0000008888000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000'
+    ]
+  }
+};
+
+// 描画関数
+function drawPixelData(canvasId, pixelData) {
+  const canvas = document.getElementById(canvasId);
+  const ctx = canvas.getContext('2d');
+  const pixelSize = 20; // 1ピクセル = 20px
+
+  // 背景を灰色で塗りつぶし
+  ctx.fillStyle = palette['c'];
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // ピクセルを描画
+  for (let row = 0; row < 16; row++) {
+    for (let col = 0; col < 16; col++) {
+      const colorKey = pixelData[row][col];
+      const color = palette[colorKey] || '#c2c3c7';
+
+      ctx.fillStyle = color;
+      ctx.fillRect(col * pixelSize, row * pixelSize, pixelSize, pixelSize);
+
+      // グリッドライン（オプション）
+      ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+      ctx.lineWidth = 0.5;
+      ctx.strokeRect(col * pixelSize, row * pixelSize, pixelSize, pixelSize);
+    }
+  }
+}
+
+// データ表示関数
+function displayData(elementId, pixelData) {
+  const element = document.getElementById(elementId);
+  let html = '<div style="line-height: 1.6;">';
+  for (let i = 0; i < pixelData.length; i++) {
+    html += `<div>Row ${String(i).padStart(2, '0')}: <span style="color: #ffec27;">${pixelData[i]}</span></div>`;
+  }
+  html += '</div>';
+  element.innerHTML = html;
+}
+
+// すべてのフェイスを描画
+Object.entries(faces).forEach(([name, face]) => {
+  const canvasId = `canvas-${name}`;
+  const dataId = `data-${name}`;
+
+  drawPixelData(canvasId, face.data);
+  displayData(dataId, face.data);
+});
+</script>
+
+</body>
+</html>

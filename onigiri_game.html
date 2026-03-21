@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>おにぎりくん ビール大好き</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            width: 100vw;
+            margin: 0;
+            background: #2a5f8d;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+        canvas {
+            border: none;
+            background: #6eb8ff;
+            display: block;
+            image-rendering: pixelated;
+            width: 100vw;
+            height: 100vh;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="1920" height="1440"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const SCALE = 2; // キャンバスサイズが2倍
+
+        // ゲーム状態
+        const GAME_STATE = {
+            START: 0,
+            PLAYING: 1,
+            GAMEOVER: 2
+        };
+
+        class Game {
+            constructor() {
+                this.state = GAME_STATE.START;
+                this.score = 0;
+                this.beersGot = 0;
+                this.bombsGot = 0;
+                this.timeBar = 199;
+                this.playerX = 960 - 48;
+                this.playerY = 1200;
+                this.playerExpression = 'normal'; // normal, happy, sad
+                this.floatingTexts = []; // 浮遊テキスト
+                this.items = [];
+                this.bombs = [];
+                this.specialItems = [];
+
+                // アイテム初期配置（画面外から流れてくる）
+                for (let i = 0; i < 4; i++) {
+                    this.items.push({
+                        x: 1980 + (i * 300),
+                        y: Math.random() * 1300 + 50,
+                        active: true
+                    });
+                }
+
+                // 爆弾初期配置（画面外から流れてくる）
+                for (let i = 0; i < 3; i++) {
+                    this.bombs.push({
+                        x: 1980 + (i * 400),
+                        y: Math.random() * 1300 + 50,
+                        active: true
+                    });
+                }
+
+                // スペシャルアイテム初期配置（画面外から流れてくる）
+                for (let i = 0; i < 2; i++) {
+                    this.specialItems.push({
+                        x: 1980 + (i * 500),
+                        y: Math.random() * 1300 + 50,
+                        active: true
+                    });
+                }
+
+                this.setupKeyboardListener();
+            }
+
+            setupKeyboardListener() {
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' && this.state !== GAME_STATE.PLAYING) {
+                        this.state = this.state === GAME_STATE.START ? GAME_STATE.PLAYING : GAME_STATE.START;
+                        if (this.state === GAME_STATE.START) {
+                            this.reset();
+                        }
+                    }
+                });
+            }
+
+            update() {
+                if (this.state !== GAME_STATE.PLAYING) return;
+
+                // キー入力処理
+                if (this.keysPressed['ArrowLeft'] || this.keysPressed['a']) {
+                    this.playerX = Math.max(this.playerX - 24, 0);
+                }
+                if (this.keysPressed['ArrowRight'] || this.keysPressed['d']) {
+                    this.playerX = Math.min(this.playerX + 24, canvas.width - 96);
+                }
+                if (this.keysPressed['ArrowUp'] || this.keysPressed['w']) {
+                    this.playerY = Math.max(this.playerY - 24, 0);
+                }
+                if (this.keysPressed['ArrowDown'] || this.keysPressed['s']) {
+                    this.playerY = Math.min(this.playerY + 24, canvas.height - 96);
+                }
+
+                // アイテム更新
+                this.items.forEach((item, i) => {
+                    this.updateItem(item);
+                });
+
+                this.bombs.forEach((bomb) => {
+                    this.updateBomb(bomb);
+                });
+
+                this.specialItems.forEach((item) => {
+                    this.updateSpecialItem(item);
+                });
+
+                // 浮遊テキスト更新
+                this.floatingTexts = this.floatingTexts.filter(text => text.life > 0);
+                this.floatingTexts.forEach(text => {
+                    text.life -= 1;
+                    text.y -= 2; // 上昇
+                });
+
+                // タイムバー減少
+                this.timeBar -= 0.12;
+
+                if (this.timeBar < 0) {
+                    this.state = GAME_STATE.GAMEOVER;
+                }
+            }
+
+            updateItem(item) {
+                if (!item.active) return;
+
+                item.x -= 18;
+
+                // 衝突判定
+                const dist = Math.hypot(item.x - this.playerX, item.y - this.playerY);
+                if (dist < 128) {
+                    item.active = false;
+                    this.score += 10;
+                    this.beersGot += 1;
+                    this.timeBar += 3;
+                    this.playerExpression = 'happy';
+                    // 時間回復エフェクト
+                    this.floatingTexts.push({
+                        x: item.x,
+                        y: item.y,
+                        text: '+3 TIME',
+                        life: 60,
+                        maxLife: 60
+                    });
+                    setTimeout(() => this.playerExpression = 'normal', 300);
+                }
+
+                // 画面外処理
+                if (item.x < -60) {
+                    item.x = 1920 + 60;
+                    item.y = Math.random() * 1300 + 50;
+                    item.active = true;
+                }
+            }
+
+            updateBomb(bomb) {
+                if (!bomb.active) return;
+
+                bomb.x -= 12;
+
+                // 衝突判定
+                const dist = Math.hypot(bomb.x - this.playerX, bomb.y - this.playerY);
+                if (dist < 128) {
+                    bomb.active = false;
+                    this.score = Math.max(0, this.score - 50);
+                    this.timeBar -= 50;
+                    this.bombsGot += 1;
+                    this.playerExpression = 'sad';
+                    setTimeout(() => this.playerExpression = 'normal', 300);
+                }
+
+                // 画面外処理
+                if (bomb.x < -60) {
+                    bomb.x = 1920 + 60;
+                    bomb.y = Math.random() * 1300 + 50;
+                    bomb.active = true;
+                }
+            }
+
+            updateSpecialItem(item) {
+                if (!item.active) return;
+
+                item.x -= 30;
+
+                // 衝突判定
+                const dist = Math.hypot(item.x - this.playerX, item.y - this.playerY);
+                if (dist < 128) {
+                    item.active = false;
+                    this.score += 100;
+                    this.timeBar += 10;
+                    this.playerExpression = 'happy';
+                    // 時間回復エフェクト（スペシャル）
+                    this.floatingTexts.push({
+                        x: item.x,
+                        y: item.y,
+                        text: '+10 TIME',
+                        life: 60,
+                        maxLife: 60
+                    });
+                    setTimeout(() => this.playerExpression = 'normal', 300);
+                }
+
+                // 画面外処理
+                if (item.x < -60) {
+                    item.x = 1920 + 60;
+                    item.y = Math.random() * 1300 + 50;
+                    item.active = true;
+                }
+            }
+
+            draw() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#6eb8ff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // タイムバー
+                const barWidth = Math.max(0, Math.min(540, this.timeBar * 2.7));
+                let barColor = '#0f0';
+                if (this.timeBar < 120) barColor = '#ff0';
+                if (this.timeBar < 80) barColor = '#f80';
+                if (this.timeBar < 40) barColor = '#f00';
+
+                ctx.fillStyle = barColor;
+                ctx.fillRect(600, 60, barWidth, 60);
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 6;
+                ctx.strokeRect(600, 60, 540, 60);
+
+                // アイテム描画
+                this.items.forEach(item => {
+                    if (item.active) this.drawBeer(item.x, item.y);
+                });
+
+                this.specialItems.forEach(item => {
+                    if (item.active) this.drawSpecialBeer(item.x, item.y);
+                });
+
+                this.bombs.forEach(bomb => {
+                    if (bomb.active) this.drawBomb(bomb.x, bomb.y);
+                });
+
+                // プレイヤー描画
+                this.drawPlayer(this.playerX, this.playerY);
+
+                // 浮遊テキスト描画
+                this.floatingTexts.forEach(text => {
+                    const alpha = text.life / text.maxLife; // 段々と透明に
+                    ctx.fillStyle = `rgba(0, 255, 0, ${alpha})`;
+                    ctx.font = 'bold 72px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(text.text, text.x, text.y);
+                });
+
+                // スコア表示
+                ctx.fillStyle = '#000';
+                ctx.font = 'bold 72px Arial';
+                ctx.textAlign = 'left';
+                ctx.fillText(`Score: ${this.score}`, 60, 150);
+                ctx.fillText(`Beer: ${this.beersGot} Bomb: ${this.bombsGot}`, 60, canvas.height - 45);
+
+                // 開始画面
+                if (this.state === GAME_STATE.START) {
+                    this.drawStartScreen();
+                }
+
+                // ゲームオーバー画面
+                if (this.state === GAME_STATE.GAMEOVER) {
+                    this.drawGameOverScreen();
+                }
+            }
+
+            drawPlayer(x, y) {
+                // おにぎりくんの本体
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(x + 24, y + 24, 144, 144);
+
+                // 海苔
+                ctx.fillStyle = '#000';
+                ctx.fillRect(x + 24, y + 96, 144, 24);
+
+                // 顔
+                if (this.playerExpression === 'happy') {
+                    // 笑顔
+                    ctx.fillStyle = '#000';
+                    ctx.fillRect(x + 48, y + 48, 24, 24); // 左目
+                    ctx.fillRect(x + 108, y + 48, 24, 24); // 右目
+                    ctx.fillRect(x + 60, y + 84, 48, 12); // 笑い
+                } else if (this.playerExpression === 'sad') {
+                    // 悲しい顔
+                    ctx.fillStyle = '#000';
+                    ctx.fillRect(x + 48, y + 60, 24, 12); // 左目
+                    ctx.fillRect(x + 108, y + 60, 24, 12); // 右目
+                    ctx.fillRect(x + 60, y + 84, 48, 12); // 泣く
+                    ctx.fillStyle = '#ff0000';
+                    ctx.fillRect(x + 36, y + 84, 12, 24); // 涙
+                    ctx.fillRect(x + 132, y + 84, 12, 24); // 涙
+                } else {
+                    // 通常顔
+                    ctx.fillStyle = '#000';
+                    ctx.fillRect(x + 48, y + 48, 24, 24); // 左目
+                    ctx.fillRect(x + 108, y + 48, 24, 24); // 右目
+                    ctx.fillRect(x + 60, y + 84, 48, 12); // 口
+                }
+            }
+
+            drawBeer(x, y) {
+                ctx.fillStyle = '#ff9900';
+                ctx.fillRect(x + 24, y + 24, 144, 144);
+                ctx.fillStyle = '#ffcc00';
+                ctx.fillRect(x + 36, y + 36, 120, 72);
+            }
+
+            drawSpecialBeer(x, y) {
+                ctx.fillStyle = '#ffcc00';
+                ctx.fillRect(x + 24, y + 24, 144, 144);
+                ctx.fillStyle = '#ff9900';
+                ctx.fillRect(x + 48, y + 48, 96, 96);
+                // キラキラ
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(x + 12, y + 12, 24, 24);
+                ctx.fillRect(x + 144, y + 144, 24, 24);
+            }
+
+            drawBomb(x, y) {
+                ctx.fillStyle = '#000';
+                ctx.beginPath();
+                ctx.arc(x + 96, y + 96, 72, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#ff0000';
+                ctx.fillRect(x + 84, y + 24, 24, 48);
+                ctx.fillStyle = '#ffff00';
+                ctx.fillRect(x + 72, y + 12, 48, 12);
+            }
+
+            drawStartScreen() {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 144px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('PUSH ENTER KEY', canvas.width / 2, 360);
+
+                ctx.font = 'bold 96px Arial';
+                ctx.fillText('おにぎりくん ビール大好き', canvas.width / 2, 600);
+
+                // ゲーム説明
+                ctx.font = '84px Arial';
+                ctx.fillText('🍺 ビール: +100pt +時間', canvas.width / 2, 840);
+                ctx.fillText('🍙 アイテム: +10pt +時間', canvas.width / 2, 1020);
+                ctx.fillText('💣 爆弾: -50pt -時間', canvas.width / 2, 1200);
+            }
+
+            drawGameOverScreen() {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 192px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('FINISH', canvas.width / 2, 540);
+
+                ctx.font = '120px Arial';
+                ctx.fillText(`Final Score: ${this.score}`, canvas.width / 2, 840);
+                ctx.fillText('PUSH ENTER TO RESTART', canvas.width / 2, 1080);
+            }
+
+            reset() {
+                this.score = 0;
+                this.beersGot = 0;
+                this.bombsGot = 0;
+                this.timeBar = 199;
+                this.playerX = 960 - 48;
+                this.playerY = 1200;
+                this.playerExpression = 'normal';
+                this.floatingTexts = [];
+
+                this.items.forEach((item, i) => {
+                    item.x = 1980 + (i * 300);
+                    item.y = Math.random() * 1300 + 50;
+                    item.active = true;
+                });
+
+                this.bombs.forEach((bomb, i) => {
+                    bomb.x = 1980 + (i * 400);
+                    bomb.y = Math.random() * 1300 + 50;
+                    bomb.active = true;
+                });
+
+                this.specialItems.forEach((item, i) => {
+                    item.x = 1980 + (i * 500);
+                    item.y = Math.random() * 1300 + 50;
+                    item.active = true;
+                });
+            }
+        }
+
+        // ゲーム初期化
+        const game = new Game();
+        game.keysPressed = {};
+
+        document.addEventListener('keydown', (e) => {
+            game.keysPressed[e.key] = true;
+        });
+
+        document.addEventListener('keyup', (e) => {
+            game.keysPressed[e.key] = false;
+        });
+
+        // ゲームループ
+        function gameLoop() {
+            game.update();
+            game.draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        gameLoop();
+    </script>
+</body>
+</html>
