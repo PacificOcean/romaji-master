@@ -2,6 +2,7 @@
 ダミー製造データ生成スクリプト
 625件 × 62特徴量 × 目的変数2種類
 """
+from pathlib import Path
 import numpy as np
 import pandas as pd
 
@@ -81,6 +82,8 @@ df["target_property_2"] = (
     + np.random.normal(0, 1.0, N)
 )
 
-df.to_csv("data/dummy_data.csv", index=False)
+out_dir = Path(__file__).parent / "data"
+out_dir.mkdir(exist_ok=True)
+df.to_csv(out_dir / "dummy_data.csv", index=False)
 print(f"ダミーデータ生成完了: {df.shape}")
 print(df[["target_property_1", "target_property_2"]].describe())
